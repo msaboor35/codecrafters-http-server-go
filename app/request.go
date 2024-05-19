@@ -110,9 +110,6 @@ func parseRequest(c net.Conn) (*Request, error) {
 			return nil, err
 		}
 	}
-	if _, ok := request.Headers[HeaderKeyHost]; !ok {
-		return nil, ErrMissingHostHeader
-	}
 
 	return &request, nil
 }
