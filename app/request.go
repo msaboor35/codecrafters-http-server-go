@@ -68,7 +68,14 @@ func (r *Request) parseHeader(header string) error {
 			return ErrMultipleHostHeader
 		}
 	}
-	r.Headers[key] = h[1]
+
+	var headerValue string
+	if len(h[1]) < 2 {
+		headerValue = ""
+	} else {
+		headerValue = h[1][1:]
+	}
+	r.Headers[key] = headerValue
 
 	return nil
 }
