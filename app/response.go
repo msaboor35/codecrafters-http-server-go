@@ -4,15 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"net/http"
 )
-
-var statusText = map[int]string{
-	200: "OK",
-	400: "Bad Request",
-	404: "Not Found",
-	501: "Not Implemented",
-	505: "HTTP Version Not Supported",
-}
 
 type Response struct {
 	StatusCode int
@@ -24,7 +17,7 @@ type Response struct {
 func NewResponse(statusCode int) *Response {
 	return &Response{
 		StatusCode: statusCode,
-		Status:     statusText[statusCode],
+		Status:     http.StatusText(statusCode),
 		Headers:    make(map[string]string),
 		Body:       []byte{},
 	}
