@@ -5,6 +5,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
+)
+
+const (
+	HTTPVersion = "HTTP/1.1"
 )
 
 func main() {
@@ -22,39 +27,81 @@ func main() {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
+	defer c.Close()
 
 	req, err := parseRequest(c)
 	if err != nil {
 		if errors.Is(err, ErrInvalidRequestLine) {
-			c.Write([]byte(ResposneBadRequest))
-			return
+			err = NewResponse(404).Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
 		} else if errors.Is(err, ErrInvalidMethod) {
-			c.Write([]byte(ResponseNotImplemented))
-			return
+			err = NewResponse(501).Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
 		} else if errors.Is(err, ErrInvalidHTTPVersion) {
-			c.Write([]byte(ResponseHTTPVersionNotSupported))
-			return
+			err = NewResponse(505).Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
 		} else if errors.Is(err, ErrMissingHostHeader) {
-			c.Write([]byte(ResposneBadRequest))
-			return
+			err = NewResponse(404).Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
 		} else if errors.Is(err, ErrMultipleHostHeader) {
-			c.Write([]byte(ResposneBadRequest))
-			return
+			err = NewResponse(404).Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
 		} else if errors.Is(err, ErrInvalidRequestTarget) {
-			c.Write([]byte(ResposneBadRequest))
-			return
+			err = NewResponse(404).Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
 		}
 
 		fmt.Println("Error parsing request: ", err.Error())
 		os.Exit(1)
 	}
 
-	if req.Method == "GET" && req.RequestTarget == "/" {
-		c.Write([]byte(ResponseOK))
-		return
+	fmt.Printf("Request: %+v\n", req)
+
+	if req.Method == "GET" {
+		if strings.HasPrefix(req.RequestTarget, "/echo/") {
+			str := strings.TrimPrefix(req.RequestTarget, "/echo/")
+			err = NewResponse(200).
+				SetHeader("Content-Type", "text/plain").
+				SetHeader("Content-Length", fmt.Sprintf("%d", len(str))).
+				SetBody([]byte(str)).
+				Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
+
+			return
+		}
+
+		err = NewResponse(404).Write(c)
+		if err != nil {
+			fmt.Println("Error writing response: ", err.Error())
+			os.Exit(1)
+		}
 	} else {
-		c.Write([]byte(ResponseNotFound))
-		return
+		err = NewResponse(404).Write(c)
+		if err != nil {
+			fmt.Println("Error writing response: ", err.Error())
+			os.Exit(1)
+		}
 	}
 
 }
