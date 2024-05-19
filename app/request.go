@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"net"
 	"slices"
 	"strings"
@@ -17,12 +16,6 @@ type Request struct {
 	Body          string
 }
 
-// parsing state machine
-const (
-	ParseRequestLine = iota + 1
-	ParseHeaders
-)
-
 const (
 	HeaderKeyHost = "host"
 )
@@ -34,81 +27,82 @@ var (
 	ErrMissingHostHeader    = errors.New("missing Host header")
 	ErrMultipleHostHeader   = errors.New("multiple Host headers")
 	ErrInvalidRequestTarget = errors.New("invalid request target")
+	errEmptyHeaderFieldName = errors.New("empty header field name")
 	methods                 = []string{"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE"}
 )
 
+func (r *Request) parseRequestLine(rl string) error {
+	rlc := strings.Split(rl, " ")
+	if len(rlc) != 3 {
+		return ErrInvalidRequestLine
+	}
+
+	if !slices.Contains(methods, rlc[0]) {
+		return ErrInvalidMethod
+	}
+
+	if rlc[1][0] != '/' {
+		return ErrInvalidRequestTarget
+	}
+
+	if rlc[2] != "HTTP/1.1" {
+		return ErrInvalidHTTPVersion
+	}
+
+	r.Method = rlc[0]
+	r.RequestTarget = rlc[1]
+	r.HTTPVersion = rlc[2]
+
+	return nil
+}
+
+func (r *Request) parseHeader(header string) error {
+	if header == "" {
+		return errEmptyHeaderFieldName
+	}
+
+	h := strings.SplitN(header, ":", 2)
+	key := strings.ToLower(h[0])
+	if key == HeaderKeyHost {
+		if _, ok := r.Headers[HeaderKeyHost]; ok {
+			return ErrMultipleHostHeader
+		}
+	}
+	r.Headers[key] = h[1]
+
+	return nil
+}
+
 func parseRequest(c net.Conn) (*Request, error) {
+	// create scanner to read line by line
 	sc := bufio.NewScanner(c)
 	sc.Split(bufio.ScanLines)
 
-	state := ParseRequestLine
 	request := Request{}
 	request.Headers = make(map[string]string)
-	fmt.Println("Parsing request")
-scanLoop:
-	for sc.Scan() {
-		fmt.Printf("state in current loop: %d\n", state)
 
-	stateSwitch:
-		switch state {
-		case ParseRequestLine:
-			rl := sc.Text()
-
-			rlc := strings.Split(rl, " ")
-			if len(rlc) != 3 {
-				return nil, ErrInvalidRequestLine
-			}
-
-			if !slices.Contains(methods, rlc[0]) {
-				return nil, ErrInvalidMethod
-			}
-
-			if rlc[1][0] != '/' {
-				return nil, ErrInvalidRequestTarget
-			}
-
-			if rlc[2] != "HTTP/1.1" {
-				return nil, ErrInvalidHTTPVersion
-			}
-
-			request.Method = rlc[0]
-			request.RequestTarget = rlc[1]
-			request.HTTPVersion = rlc[2]
-
-			state = ParseHeaders
-
-			fmt.Printf("request after parsing request line: %+v\n", request)
-
-			break stateSwitch
-		case ParseHeaders:
-			fmt.Printf("parsing headers\n")
-
-			header := sc.Text()
-			fmt.Printf("header#%d: %s\n", len(request.Headers)+1, header)
-			if header == "" {
-				// nothing else to parse in the headers
-				break scanLoop
-			}
-
-			h := strings.SplitN(header, ":", 2)
-			key := strings.ToLower(h[0])
-			if key == HeaderKeyHost {
-				if _, ok := request.Headers[HeaderKeyHost]; ok {
-					return nil, ErrMultipleHostHeader
-				}
-			}
-			request.Headers[key] = h[1]
-
-			break stateSwitch
-		default:
-			panic("unknown state")
-		}
-		fmt.Printf("state after switch: %d\n", state)
-		fmt.Printf("request after switch: %+v\n", request)
-		fmt.Printf("scan error: %v\n", sc.Err())
-		fmt.Println("===========================")
+	// parse request line
+	rl := sc.Scan()
+	if !rl {
+		return nil, ErrInvalidRequestLine
+	}
+	err := request.parseRequestLine(sc.Text())
+	if err != nil {
+		return nil, err
 	}
 
+	// parse headers
+	for sc.Scan() {
+		header := sc.Text()
+
+		err := request.parseHeader(header)
+		if err != nil {
+			if err == errEmptyHeaderFieldName {
+				break
+			}
+			return nil, err
+		}
+	}
 	if _, ok := request.Headers[HeaderKeyHost]; !ok {
 		return nil, ErrMissingHostHeader
 	}
