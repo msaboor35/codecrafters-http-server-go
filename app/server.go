@@ -76,6 +76,16 @@ func main() {
 	fmt.Printf("Request: %+v\n", req)
 
 	if req.Method == "GET" {
+		if req.RequestTarget == "/" {
+			err = NewResponse(200).Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
+
+			return
+		}
+
 		if strings.HasPrefix(req.RequestTarget, "/echo/") {
 			str := strings.TrimPrefix(req.RequestTarget, "/echo/")
 			err = NewResponse(200).
