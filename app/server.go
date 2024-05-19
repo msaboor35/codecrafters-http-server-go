@@ -101,6 +101,26 @@ func main() {
 			return
 		}
 
+		if req.RequestTarget == "/user-agent" {
+			var userAgent string
+			var ok bool
+			if userAgent, ok = req.Headers["user-agent"]; !ok {
+				userAgent = ""
+			}
+
+			err = NewResponse(200).
+				SetHeader("Content-Type", "text/plain").
+				SetHeader("Content-Length", fmt.Sprintf("%d", len(userAgent))).
+				SetBody([]byte(userAgent)).
+				Write(c)
+			if err != nil {
+				fmt.Println("Error writing response: ", err.Error())
+				os.Exit(1)
+			}
+
+			return
+		}
+
 		err = NewResponse(404).Write(c)
 		if err != nil {
 			fmt.Println("Error writing response: ", err.Error())
