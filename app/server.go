@@ -98,6 +98,15 @@ func processRequest(c net.Conn) error {
 			filename := strings.TrimPrefix(req.RequestTarget, "/files/")
 			fileData, err := os.ReadFile(fmt.Sprintf("%s/%s", servingDirectory, filename))
 			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					err = NewResponse(404).Write(c)
+					if err != nil {
+						fmt.Printf("Error writing response: %v\n", err)
+						return err
+					}
+					return nil
+				}
+
 				err = NewResponse(500).Write(c)
 				if err != nil {
 					fmt.Printf("Error writing response: %v\n", err)
