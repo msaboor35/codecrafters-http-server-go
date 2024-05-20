@@ -159,10 +159,6 @@ func main() {
 
 	flag.StringVar(&servingDirectory, "directory", "", "Directory to serve files from")
 	flag.Parse()
-	if servingDirectory == "" {
-		fmt.Println("Directory is required")
-		os.Exit(1)
-	}
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
