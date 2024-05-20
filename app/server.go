@@ -150,6 +150,28 @@ func processRequest(c net.Conn) error {
 			fmt.Printf("Error writing response: %v\n", err)
 			return err
 		}
+	} else if req.Method == "POST" {
+		if strings.HasPrefix(req.RequestTarget, "/files/") {
+			filename := strings.TrimPrefix(req.RequestTarget, "/files/")
+			fileData := req.Body
+
+			err := os.WriteFile(fmt.Sprintf("%s/%s", servingDirectory, filename), fileData, 0644)
+			if err != nil {
+				err = NewResponse(500).Write(c)
+				if err != nil {
+					fmt.Printf("Error writing response: %v\n", err)
+					return err
+				}
+			}
+
+			err = NewResponse(201).Write(c)
+			if err != nil {
+				fmt.Printf("Error writing response: %v\n", err)
+				return err
+			}
+
+			return nil
+		}
 	} else {
 		err = NewResponse(404).Write(c)
 		if err != nil {
