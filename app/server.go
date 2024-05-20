@@ -21,12 +21,6 @@ func processRequest(c net.Conn) error {
 				fmt.Printf("Error writing response: %v\n", err)
 				return err
 			}
-		} else if errors.Is(err, ErrInvalidMethod) {
-			err := NewResponse(501).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
 		} else if errors.Is(err, ErrInvalidHTTPVersion) {
 			err := NewResponse(505).Write(c)
 			if err != nil {

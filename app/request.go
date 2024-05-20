@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"net"
-	"slices"
 	"strings"
 )
 
@@ -28,17 +27,12 @@ var (
 	ErrMultipleHostHeader   = errors.New("multiple Host headers")
 	ErrInvalidRequestTarget = errors.New("invalid request target")
 	errEmptyHeaderFieldName = errors.New("empty header field name")
-	methods                 = []string{"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE"}
 )
 
 func (r *Request) parseRequestLine(rl string) error {
 	rlc := strings.Split(rl, " ")
 	if len(rlc) != 3 {
 		return ErrInvalidRequestLine
-	}
-
-	if !slices.Contains(methods, rlc[0]) {
-		return ErrInvalidMethod
 	}
 
 	if rlc[1][0] != '/' {
