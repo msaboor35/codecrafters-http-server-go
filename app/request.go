@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -12,7 +13,7 @@ type Request struct {
 	RequestTarget string
 	HTTPVersion   string
 	Headers       map[string]string
-	Body          string
+	Body          []byte
 }
 
 const (
@@ -20,13 +21,16 @@ const (
 )
 
 var (
-	ErrInvalidRequestLine   = errors.New("invalid request line")
-	ErrInvalidMethod        = errors.New("invalid request method")
-	ErrInvalidHTTPVersion   = errors.New("invalid HTTP version")
-	ErrMissingHostHeader    = errors.New("missing Host header")
-	ErrMultipleHostHeader   = errors.New("multiple Host headers")
-	ErrInvalidRequestTarget = errors.New("invalid request target")
-	errEmptyHeaderFieldName = errors.New("empty header field name")
+	ErrInvalidRequestLine          = errors.New("invalid request line")
+	ErrInvalidMethod               = errors.New("invalid request method")
+	ErrInvalidHTTPVersion          = errors.New("invalid HTTP version")
+	ErrMissingHostHeader           = errors.New("missing Host header")
+	ErrMultipleHostHeader          = errors.New("multiple Host headers")
+	ErrInvalidRequestTarget        = errors.New("invalid request target")
+	errEmptyHeaderFieldName        = errors.New("empty header field name")
+	ErrUnsupportedTransferEncoding = errors.New("unsupported transfer encoding")
+	ErrInvalidContentLength        = errors.New("invalid content length")
+	ErrFailedToReadBody            = errors.New("failed to read body")
 )
 
 func (r *Request) parseRequestLine(rl string) error {
@@ -103,6 +107,43 @@ func parseRequest(c net.Conn) (*Request, error) {
 			}
 			return nil, err
 		}
+	}
+
+	// parse body
+	if _, ok := request.Headers["transfer-encoding"]; ok {
+		return nil, ErrUnsupportedTransferEncoding
+	}
+
+	if clv, ok := request.Headers["content-length"]; ok {
+		// parse content length field value
+		clv = strings.ReplaceAll(clv, " ", "")
+		clvList := strings.Split(clv, ",")
+		allSame := true
+		prevCl := clvList[0]
+		for _, clv := range clvList {
+			if clv != prevCl {
+				allSame = false
+				break
+			}
+			prevCl = clv
+		}
+
+		if !allSame {
+			return nil, ErrInvalidContentLength
+		}
+
+		contentLength, err := strconv.Atoi(clv)
+		if err != nil {
+			return nil, ErrInvalidContentLength
+		}
+
+		body := make([]byte, contentLength)
+		_, err = c.Read(body)
+		if err != nil {
+			return nil, ErrFailedToReadBody
+		}
+
+		request.Body = body
 	}
 
 	return &request, nil
