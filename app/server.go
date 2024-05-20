@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -93,6 +94,30 @@ func processRequest(c net.Conn) error {
 			return nil
 		}
 
+		if strings.HasPrefix(req.RequestTarget, "/files/") {
+			filename := strings.TrimPrefix(req.RequestTarget, "/files/")
+			fileData, err := os.ReadFile(fmt.Sprintf("%s/%s", servingDirectory, filename))
+			if err != nil {
+				err = NewResponse(500).Write(c)
+				if err != nil {
+					fmt.Printf("Error writing response: %v\n", err)
+					return err
+				}
+			}
+
+			err = NewResponse(200).
+				SetHeader("Content-Type", "application/octet-stream").
+				SetHeader("Content-Length", fmt.Sprintf("%d", len(fileData))).
+				SetBody(fileData).
+				Write(c)
+			if err != nil {
+				fmt.Printf("Error writing response: %v\n", err)
+				return err
+			}
+
+			return nil
+		}
+
 		err = NewResponse(404).Write(c)
 		if err != nil {
 			fmt.Printf("Error writing response: %v\n", err)
@@ -117,9 +142,18 @@ func handleConnection(c net.Conn) {
 	}
 }
 
+var servingDirectory string
+
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
+
+	flag.StringVar(&servingDirectory, "directory", "", "Directory to serve files from")
+	flag.Parse()
+	if servingDirectory == "" {
+		fmt.Println("Directory is required")
+		os.Exit(1)
+	}
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
