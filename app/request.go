@@ -13,6 +13,7 @@ type Request struct {
 	RequestTarget string
 	HTTPVersion   string
 	Headers       map[string]string
+	ContentLength int
 	Body          []byte
 }
 
@@ -78,29 +79,66 @@ func (r *Request) parseHeader(header string) error {
 	return nil
 }
 
+func readLine(byteScanner *bufio.Scanner) (string, error) {
+	line := ""
+	prevByte := byte(0)
+	first := true
+	for byteScanner.Scan() {
+		b := byteScanner.Bytes()
+		if prevByte == '\r' && b[0] == '\n' {
+			break
+		}
+		if first {
+			first = false
+			prevByte = b[0]
+			continue
+		}
+		line += string(prevByte)
+		prevByte = b[0]
+	}
+
+	if err := byteScanner.Err(); err != nil {
+		return "", err
+	}
+
+	if len(line) == 0 {
+		return "", nil
+	}
+
+	// remove the last byte if it' part of a '\r\n' sequence
+	if line[len(line)-1] == '\r' {
+		line = line[:len(line)-1]
+	}
+
+	return line, nil
+}
+
 func parseRequest(c net.Conn) (*Request, error) {
 	// create scanner to read line by line
 	sc := bufio.NewScanner(c)
-	sc.Split(bufio.ScanLines)
+	sc.Split(bufio.ScanBytes)
 
 	request := Request{}
 	request.Headers = make(map[string]string)
 
 	// parse request line
-	rl := sc.Scan()
-	if !rl {
+	rl, err := readLine(sc)
+	if err != nil {
 		return nil, ErrInvalidRequestLine
 	}
-	err := request.parseRequestLine(sc.Text())
+	err = request.parseRequestLine(rl)
 	if err != nil {
 		return nil, err
 	}
 
 	// parse headers
-	for sc.Scan() {
-		header := sc.Text()
+	for {
+		header, err := readLine(sc)
+		if err != nil {
+			return nil, err
+		}
 
-		err := request.parseHeader(header)
+		err = request.parseHeader(header)
 		if err != nil {
 			if err == errEmptyHeaderFieldName {
 				break
@@ -137,13 +175,18 @@ func parseRequest(c net.Conn) (*Request, error) {
 			return nil, ErrInvalidContentLength
 		}
 
-		body := make([]byte, contentLength)
-		_, err = c.Read(body)
-		if err != nil {
-			return nil, ErrFailedToReadBody
-		}
+		request.ContentLength = contentLength
 
+		// read body
+		body := make([]byte, contentLength)
+		for i := 0; i < contentLength; i++ {
+			if !sc.Scan() {
+				return nil, ErrFailedToReadBody
+			}
+			body[i] = sc.Bytes()[0]
+		}
 		request.Body = body
+
 	}
 
 	return &request, nil
