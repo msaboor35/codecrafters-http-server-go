@@ -49,12 +49,7 @@ func processRequest(c net.Conn) error {
 		}
 
 		if req.RequestTarget == "/user-agent" {
-			var userAgent string
-			var ok bool
-			if userAgent, ok = req.Headers["user-agent"]; !ok {
-				userAgent = ""
-			}
-
+			userAgent := lo.ValueOr(req.Headers, "user-agent", "")
 			return NewResponse(200).SendString(c, userAgent)
 		}
 
