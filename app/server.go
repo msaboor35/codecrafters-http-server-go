@@ -17,47 +17,19 @@ func processRequest(c net.Conn) error {
 	req, err := parseRequest(c)
 	if err != nil {
 		if errors.Is(err, ErrInvalidRequestLine) {
-			err := NewResponse(404).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
+			return NewResponse(404).Send(c)
 		} else if errors.Is(err, ErrInvalidHTTPVersion) {
-			err := NewResponse(505).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
+			return NewResponse(505).Send(c)
 		} else if errors.Is(err, ErrMultipleHostHeader) {
-			err := NewResponse(404).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
+			return NewResponse(400).Send(c)
 		} else if errors.Is(err, ErrInvalidRequestTarget) {
-			err := NewResponse(404).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
+			return NewResponse(400).Send(c)
 		} else if errors.Is(err, ErrUnsupportedTransferEncoding) {
-			err := NewResponse(501).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
+			return NewResponse(501).Send(c)
 		} else if errors.Is(err, ErrInvalidContentLength) {
-			err := NewResponse(400).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
+			return NewResponse(400).Send(c)
 		} else if errors.Is(err, ErrFailedToReadBody) {
-			err := NewResponse(500).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
+			return NewResponse(500).Send(c)
 		}
 
 		fmt.Printf("Error parsing request: %v\n", err)
@@ -68,28 +40,12 @@ func processRequest(c net.Conn) error {
 
 	if req.Method == "GET" {
 		if req.RequestTarget == "/" {
-			err = NewResponse(200).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
-
-			return nil
+			return NewResponse(200).Send(c)
 		}
 
 		if strings.HasPrefix(req.RequestTarget, "/echo/") {
 			str := strings.TrimPrefix(req.RequestTarget, "/echo/")
-			err = NewResponse(200).
-				SetHeader("Content-Type", "text/plain").
-				SetHeader("Content-Length", fmt.Sprintf("%d", len(str))).
-				SetBody([]byte(str)).
-				Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
-
-			return nil
+			return NewResponse(200).SendString(c, str)
 		}
 
 		if req.RequestTarget == "/user-agent" {
@@ -99,17 +55,7 @@ func processRequest(c net.Conn) error {
 				userAgent = ""
 			}
 
-			err = NewResponse(200).
-				SetHeader("Content-Type", "text/plain").
-				SetHeader("Content-Length", fmt.Sprintf("%d", len(userAgent))).
-				SetBody([]byte(userAgent)).
-				Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
-
-			return nil
+			return NewResponse(200).SendString(c, userAgent)
 		}
 
 		if strings.HasPrefix(req.RequestTarget, "/files/") {
@@ -117,39 +63,16 @@ func processRequest(c net.Conn) error {
 			fileData, err := os.ReadFile(fmt.Sprintf("%s/%s", servingDirectory, filename))
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) {
-					err = NewResponse(404).Write(c)
-					if err != nil {
-						fmt.Printf("Error writing response: %v\n", err)
-						return err
-					}
-					return nil
+					return NewResponse(404).Send(c)
 				}
 
-				err = NewResponse(500).Write(c)
-				if err != nil {
-					fmt.Printf("Error writing response: %v\n", err)
-					return err
-				}
+				return NewResponse(500).Send(c)
 			}
 
-			err = NewResponse(200).
-				SetHeader("Content-Type", "application/octet-stream").
-				SetHeader("Content-Length", fmt.Sprintf("%d", len(fileData))).
-				SetBody(fileData).
-				Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
-
-			return nil
+			return NewResponse(200).SendBytes(c, fileData)
 		}
 
-		err = NewResponse(404).Write(c)
-		if err != nil {
-			fmt.Printf("Error writing response: %v\n", err)
-			return err
-		}
+		return NewResponse(404).Send(c)
 	} else if req.Method == "POST" {
 		if strings.HasPrefix(req.RequestTarget, "/files/") {
 			filename := strings.TrimPrefix(req.RequestTarget, "/files/")
@@ -158,31 +81,14 @@ func processRequest(c net.Conn) error {
 			err := os.WriteFile(fmt.Sprintf("%s/%s", servingDirectory, filename), fileData, 0644)
 			if err != nil {
 				fmt.Println("Error writing file: ", err)
-				err = NewResponse(500).Write(c)
-				if err != nil {
-					fmt.Printf("Error writing response: %v\n", err)
-					return err
-				}
-				return nil
+				return NewResponse(500).Send(c)
 			}
 
-			err = NewResponse(201).Write(c)
-			if err != nil {
-				fmt.Printf("Error writing response: %v\n", err)
-				return err
-			}
-
-			return nil
-		}
-	} else {
-		err = NewResponse(404).Write(c)
-		if err != nil {
-			fmt.Printf("Error writing response: %v\n", err)
-			return err
+			return NewResponse(201).Send(c)
 		}
 	}
 
-	return nil
+	return NewResponse(404).Send(c)
 }
 
 func handleConnection(c net.Conn) {

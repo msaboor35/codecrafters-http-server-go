@@ -33,7 +33,7 @@ func (resp *Response) SetBody(data []byte) *Response {
 	return resp
 }
 
-func (resp *Response) Write(c net.Conn) error {
+func (resp *Response) write(c net.Conn) error {
 	wr := bufio.NewWriter(c)
 	defer func() error {
 		err := wr.Flush()
@@ -80,4 +80,28 @@ func (resp *Response) generateHeaders() []byte {
 	}
 	headers += "\r\n"
 	return []byte(headers)
+}
+
+func (resp *Response) Send(c net.Conn) error {
+	err := resp.write(c)
+	if err != nil {
+		fmt.Printf("Error writing response: %v\n", err)
+		return err
+	}
+
+	return nil
+}
+
+func (resp *Response) SendString(c net.Conn, data string) error {
+	return resp.SetHeader("Content-Type", "text/plain").
+		SetHeader("Content-Length", fmt.Sprintf("%d", len(data))).
+		SetBody([]byte(data)).
+		Send(c)
+}
+
+func (resp *Response) SendBytes(c net.Conn, data []byte) error {
+	return resp.SetHeader("Content-Type", "application/octet-stream").
+		SetHeader("Content-Length", fmt.Sprintf("%d", len(data))).
+		SetBody(data).
+		Send(c)
 }
