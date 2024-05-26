@@ -49,8 +49,13 @@ func processRequest(c net.Conn) error {
 			str := strings.TrimPrefix(req.RequestTarget, "/echo/")
 			resp := NewResponse(200)
 
-			if enc, ok := req.Headers["accept-encoding"]; ok {
-				if enc == "gzip" {
+			if encs, ok := req.Headers["accept-encoding"]; ok {
+				encList := strings.Split(encs, ",")
+				encList = lo.Map(encList, func(e string, _ int) string {
+					return strings.TrimSpace(e)
+				})
+
+				if lo.Contains(encList, "gzip") {
 					resp = resp.SetHeader("Content-Encoding", "gzip")
 				}
 			}
