@@ -45,7 +45,15 @@ func processRequest(c net.Conn) error {
 
 		if strings.HasPrefix(req.RequestTarget, "/echo/") {
 			str := strings.TrimPrefix(req.RequestTarget, "/echo/")
-			return NewResponse(200).SendString(c, str)
+			resp := NewResponse(200)
+
+			if enc, ok := req.Headers["accept-encoding"]; ok {
+				if enc == "gzip" {
+					resp = resp.SetHeader("Content-Encoding", "gzip")
+				}
+			}
+
+			return resp.SendString(c, str)
 		}
 
 		if req.RequestTarget == "/user-agent" {
