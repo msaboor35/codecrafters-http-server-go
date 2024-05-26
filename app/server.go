@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"flag"
 	"fmt"
@@ -56,7 +58,16 @@ func processRequest(c net.Conn) error {
 				})
 
 				if lo.Contains(encList, "gzip") {
+					var b bytes.Buffer
+					gz := gzip.NewWriter(&b)
+					if _, err := gz.Write([]byte(str)); err != nil {
+						return NewResponse(500).Send(c)
+					}
+					if err := gz.Close(); err != nil {
+						return NewResponse(500).Send(c)
+					}
 					resp = resp.SetHeader("Content-Encoding", "gzip")
+					return resp.SendString(c, b.String())
 				}
 			}
 
