@@ -81,6 +81,8 @@ func processRequest(c net.Conn) error {
 
 			return NewResponse(201).Send(c)
 		}
+
+		return NewResponse(404).Send(c)
 	}
 
 	return NewResponse(404).Send(c)
